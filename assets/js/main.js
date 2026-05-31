@@ -14,39 +14,53 @@ function getCSRFToken() {
         root.setAttribute('data-theme', theme);
         try { localStorage.setItem('theme', theme); } catch(e) {}
 
-        // Обновить состояние свитча в дропдауне
-        const sw = document.querySelector('.theme-switch');
-        if (sw) sw.checked = (theme === 'dark');
-
-        // Обновить лейбл
-        const lbl = document.querySelector('.theme-label');
-        if (lbl) lbl.textContent = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
-
-        // meta theme-color
+        document.querySelectorAll('.theme-switch').forEach(sw => {
+            sw.checked = (theme === 'dark');
+        });
+        document.querySelectorAll('.theme-label').forEach(lbl => {
+            lbl.textContent = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+        });
         const meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', theme === 'dark' ? '#1e293b' : '#6366f1');
     }
 
     function toggleTheme(e) {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-        applyTheme(next);
+        const current = root.getAttribute('data-theme') || 'light';
+        applyTheme(current === 'dark' ? 'light' : 'dark');
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // Применить текущую тему (синхронизировать свитч и лейбл)
-        applyTheme(root.getAttribute('data-theme') || 'light');
+    function init() {
+        applyTheme(root.getAttribute('data-theme') || localStorage.getItem('theme') || 'light');
 
-        const toggleItem = document.getElementById('themeToggle');
-        if (toggleItem) toggleItem.addEventListener('click', toggleTheme);
+        // Прямые обработчики на все возможные триггеры
+        const ids = ['themeToggle', 'themeToggleGuest'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('click', toggleTheme);
+            }
+        });
 
-        const toggleGuest = document.getElementById('themeToggleGuest');
-        if (toggleGuest) toggleGuest.addEventListener('click', toggleTheme);
-    });
+        // КЛЮЧЕВОЙ ФИКС: input.theme-switch может перехватить клик сам — вешаем на него change
+        document.querySelectorAll('.theme-switch').forEach(sw => {
+            sw.addEventListener('change', function(e) {
+                e.stopPropagation();
+                applyTheme(sw.checked ? 'dark' : 'light');
+            });
+            sw.addEventListener('click', function(e) {
+                e.stopPropagation(); // не даём Bootstrap закрыть dropdown
+            });
+        });
+    }
 
-    // Экспорт на случай ручного вызова
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
     window.toggleTheme = toggleTheme;
-    window.applyTheme  = applyTheme;
 })();
 
 /* ---------- NAVBAR SCROLL EFFECT ---------- */

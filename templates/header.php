@@ -80,15 +80,15 @@
                                 </a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <button type="button" class="dropdown-item theme-toggle-item" id="themeToggle">
-                                        <i class="fas fa-moon me-2 theme-icon-dark"></i>
-                                        <i class="fas fa-sun me-2 theme-icon-light"></i>
-                                        <span class="theme-label">Тёмная тема</span>
-                                        <span class="form-check form-switch ms-auto mb-0">
-                                            <input class="form-check-input theme-switch" type="checkbox" role="switch" tabindex="-1" onclick="return false;">
-                                        </span>
-                                    </button>
-                                </li>
+    <a class="dropdown-item theme-toggle-item d-flex align-items-center" href="#" id="themeToggle" role="button">
+        <i class="fas fa-moon me-2 theme-icon-dark"></i>
+        <i class="fas fa-sun me-2 theme-icon-light"></i>
+        <span class="theme-label flex-grow-1">Тёмная тема</span>
+        <div class="form-check form-switch ms-2 mb-0">
+            <input class="form-check-input theme-switch" type="checkbox" role="switch" aria-label="Переключить тему">
+        </div>
+    </a>
+</li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item text-danger" href="<?= SITE_URL ?>/logout.php">
                                     <i class="fas fa-sign-out-alt me-2"></i>Выйти

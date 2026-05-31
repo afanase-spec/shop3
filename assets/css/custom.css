@@ -364,13 +364,12 @@ html[data-theme="dark"] .navbar {
 
 /* Theme toggle item в дропдауне */
 .theme-toggle-item {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    border: none;
-    background: transparent;
     cursor: pointer;
-    text-align: left;
+    user-select: none;
+}
+
+.theme-toggle-item:hover {
+    background: var(--bg-muted);
 }
 
 .theme-toggle-item .theme-icon-dark,
@@ -382,12 +381,15 @@ html[data-theme="dark"] .navbar {
 html[data-theme="light"] .theme-icon-light { display: none; }
 html[data-theme="dark"] .theme-icon-dark { display: none; }
 
+.theme-toggle-item .form-check {
+    margin: 0;
+}
+
 .theme-toggle-item .form-check-input {
     background-color: var(--bg-muted);
     border-color: var(--border-strong);
-    cursor: pointer;
     width: 2.2em;
-    margin-left: auto !important;
+    cursor: pointer;
 }
 
 .theme-toggle-item .form-check-input:checked {
