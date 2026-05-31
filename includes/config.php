@@ -9,7 +9,7 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 
 // Константы сайта
-define('SITE_URL', 'http://shop2');
+define('SITE_URL', 'http://shop3');
 define('SITE_NAME', 'Доставка Продуктов');
 
 // Настройки безопасности

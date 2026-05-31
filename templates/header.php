@@ -1,31 +1,45 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= escape($pageTitle ?? SITE_NAME) ?></title>
-    
+
+    <!-- АНТИ-ВСПЫШКА: применяем тему ДО загрузки CSS -->
+    <script>
+        (function() {
+            try {
+                var saved = localStorage.getItem('theme');
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var theme = saved || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch(e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?= SITE_URL ?>/assets/css/custom.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS (с версионированием — сбрасывает кэш браузера) -->
+    <link rel="stylesheet" href="<?= SITE_URL ?>/assets/css/custom.css?v=<?= filemtime(__DIR__ . '/../assets/css/custom.css') ?>">
 </head>
 <body>
     <!-- Навбар -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+    <nav class="navbar navbar-expand-lg sticky-top shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold gradient-text" href="<?= SITE_URL ?>/">
                 <i class="fas fa-shopping-basket me-2"></i><?= SITE_NAME ?>
             </a>
-            
+
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item">
@@ -40,29 +54,42 @@
                     <li class="nav-item ms-lg-3">
                         <a class="nav-link cart-link position-relative" href="<?= SITE_URL ?>/cart.php">
                             <i class="fas fa-shopping-cart fa-lg"></i>
-                            <?php 
-                            $cartCount = getCartCount(); 
+                            <?php
+                            $cartCount = getCartCount();
                             $cartTotal = calculateCartTotal();
                             ?>
                             <?php if ($cartCount > 0): ?>
                                 <span class="cart-badge badge bg-danger"><?= $cartCount ?></span>
-                                <div class="cart-total-badge" style="font-size: 0.7rem; color: var(--primary-color); font-weight: 600; text-align: center; margin-top: 2px;">
+                                <div class="cart-total-badge">
                                     <?= formatPrice($cartTotal) ?>
                                 </div>
                             <?php endif; ?>
                         </a>
                     </li>
-                    
+
                     <!-- Авторизация пользователя -->
                     <?php if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in']): ?>
+                        <?php $userName = $_SESSION['user_name'] ?? 'Пользователь'; ?>
                         <li class="nav-item dropdown ms-lg-2">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user me-1"></i><?= escape($_SESSION['user_name'] ?? 'Пользователь') ?>
+                            <a class="nav-link dropdown-toggle user-dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <span class="user-avatar"><?= mb_strtoupper(mb_substr($userName, 0, 1)) ?></span>
+                                <span class="user-name d-none d-md-inline ms-2"><?= escape($userName) ?></span>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
+                            <ul class="dropdown-menu dropdown-menu-end user-dropdown">
                                 <li><a class="dropdown-item" href="<?= SITE_URL ?>/profile.php">
                                     <i class="fas fa-user-circle me-2"></i>Мой профиль
                                 </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button type="button" class="dropdown-item theme-toggle-item" id="themeToggle">
+                                        <i class="fas fa-moon me-2 theme-icon-dark"></i>
+                                        <i class="fas fa-sun me-2 theme-icon-light"></i>
+                                        <span class="theme-label">Тёмная тема</span>
+                                        <span class="form-check form-switch ms-auto mb-0">
+                                            <input class="form-check-input theme-switch" type="checkbox" role="switch" tabindex="-1">
+                                        </span>
+                                    </button>
+                                </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="<?= SITE_URL ?>/logout.php">
                                     <i class="fas fa-sign-out-alt me-2"></i>Выйти
@@ -70,6 +97,12 @@
                             </ul>
                         </li>
                     <?php else: ?>
+                        <li class="nav-item ms-lg-2">
+                            <button type="button" class="btn btn-icon-only theme-toggle-guest" id="themeToggleGuest" title="Сменить тему">
+                                <i class="fas fa-moon theme-icon-dark"></i>
+                                <i class="fas fa-sun theme-icon-light"></i>
+                            </button>
+                        </li>
                         <li class="nav-item ms-lg-2">
                             <a class="nav-link" href="<?= SITE_URL ?>/login.php">
                                 <i class="fas fa-sign-in-alt me-1"></i>Вход
@@ -81,11 +114,12 @@
                             </a>
                         </li>
                     <?php endif; ?>
-                    
+
                     <?php if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in']): ?>
                         <li class="nav-item ms-lg-2">
-                            <a class="nav-link" href="<?= SITE_URL ?>/admin/">
-                                <i class="fas fa-cog"></i> Админка
+                            <a class="nav-link admin-link" href="<?= SITE_URL ?>/admin/">
+                                <i class="fas fa-cog me-1"></i> Админка
+                                <span class="admin-badge">ADMIN</span>
                             </a>
                         </li>
                     <?php endif; ?>
@@ -93,7 +127,7 @@
             </div>
         </div>
     </nav>
-    
+
     <!-- Flash сообщения -->
     <?php $flash = getFlashMessage(); ?>
     <?php if ($flash): ?>
@@ -104,9 +138,12 @@
             </div>
         </div>
     <?php endif; ?>
-    
+
     <!-- CSRF токен для AJAX запросов -->
     <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>" id="csrf_token_global">
-    
+
+    <!-- Toast контейнер -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
+
     <!-- Основной контент -->
     <main>
