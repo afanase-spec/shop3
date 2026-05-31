@@ -1,283 +1,353 @@
-(function initTheme() {
-    const saved = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = saved || (prefersDark ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
+function getCSRFToken() {
+    const csrfById = document.getElementById('csrf_token_global');
+    if (csrfById) return csrfById.value;
+    const csrfByName = document.querySelector('input[name="csrf_token"]');
+    if (csrfByName) return csrfByName.value;
+    return '';
+}
+
+/* ---------- THEME TOGGLE ---------- */
+(function() {
+    const root = document.documentElement;
+
+    function applyTheme(theme) {
+        root.setAttribute('data-theme', theme);
+        try { localStorage.setItem('theme', theme); } catch(e) {}
+
+        // Обновить состояние свитча в дропдауне
+        const sw = document.querySelector('.theme-switch');
+        if (sw) sw.checked = (theme === 'dark');
+
+        // Обновить лейбл
+        const lbl = document.querySelector('.theme-label');
+        if (lbl) lbl.textContent = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+
+        // meta theme-color
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'dark' ? '#1e293b' : '#6366f1');
+    }
+
+    function toggleTheme(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Применить текущую тему (синхронизировать свитч и лейбл)
+        applyTheme(root.getAttribute('data-theme') || 'light');
+
+        const toggleItem = document.getElementById('themeToggle');
+        if (toggleItem) toggleItem.addEventListener('click', toggleTheme);
+
+        const toggleGuest = document.getElementById('themeToggleGuest');
+        if (toggleGuest) toggleGuest.addEventListener('click', toggleTheme);
+    });
+
+    // Экспорт на случай ручного вызова
+    window.toggleTheme = toggleTheme;
+    window.applyTheme  = applyTheme;
 })();
 
-function toggleTheme() {
-    const current = document.documentElement.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-
-    const btn = document.querySelector('.theme-toggle i');
-    if (btn) {
-        btn.className = next === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.querySelector('.theme-toggle i');
-    if (btn) {
-        const current = document.documentElement.getAttribute('data-theme');
-        btn.className = current === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+/* ---------- NAVBAR SCROLL EFFECT ---------- */
+window.addEventListener('scroll', function() {
+    const navbar = document.querySelector('.navbar');
+    if (navbar) {
+        if (window.scrollY > 50) navbar.classList.add('scrolled');
+        else navbar.classList.remove('scrolled');
     }
 });
 
-// ============= CSRF =============
-function getCSRFToken() {
-    const el = document.getElementById('csrf_token_global') || document.querySelector('input[name="csrf_token"]');
-    return el ? el.value : '';
-}
-
-// ============= ТОСТ-УВЕДОМЛЕНИЯ =============
-function ensureToastContainer() {
-    let c = document.querySelector('.toast-container');
-    if (!c) {
-        c = document.createElement('div');
-        c.className = 'toast-container';
-        document.body.appendChild(c);
+/* ---------- ДОБАВИТЬ В КОРЗИНУ ---------- */
+function addToCart(productId, quantity = 1) {
+    const token = getCSRFToken();
+    if (!token) {
+        showNotification('Ошибка безопасности', 'error');
+        return;
     }
-    return c;
+    const formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    formData.append('csrf_token', token);
+
+    fetch('/api/cart-add.php', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                updateCartBadge(data.cartCount, data.cartTotal);
+                const qty = data.currentQty || 1;
+                replaceButtonWithQuantityControl(productId, qty);
+            } else {
+                showNotification(data.message, 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showNotification('Произошла ошибка', 'error');
+        });
 }
 
+/* ---------- УДАЛИТЬ ИЗ КОРЗИНЫ ---------- */
+function removeFromCart(productId) {
+    const token = getCSRFToken();
+    if (!token) { showNotification('Ошибка безопасности', 'error'); return; }
+
+    const formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('csrf_token', token);
+
+    fetch('/api/cart-remove.php', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                updateCartBadge(data.cartCount, data.cartTotal);
+
+                const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+                if (row) row.remove();
+
+                const cartTotalElement = document.getElementById('cartTotal');
+                if (cartTotalElement) cartTotalElement.textContent = formatPrice(data.cartTotal);
+
+                if (data.cartCount === 0) {
+                    setTimeout(() => window.location.reload(), 800);
+                }
+            } else {
+                showNotification(data.message, 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showNotification('Произошла ошибка', 'error');
+        });
+}
+
+/* ---------- ОБНОВИТЬ КОЛ-ВО (таблица корзины) ---------- */
+function updateQuantity(productId, quantity) {
+    if (quantity < 1) { removeFromCart(productId); return; }
+
+    const token = getCSRFToken();
+    if (!token) { showNotification('Ошибка безопасности', 'error'); return; }
+
+    const formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    formData.append('csrf_token', token);
+
+    fetch('/api/cart-update.php', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const qtyInput = document.getElementById(`qty-${productId}`);
+                if (qtyInput) qtyInput.value = quantity;
+
+                const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+                if (row) {
+                    const buttons = row.querySelectorAll('.quantity-control button');
+                    if (buttons.length >= 2) {
+                        buttons[0].setAttribute('onclick', `updateQuantity(${productId}, ${Math.max(1, quantity - 1)})`);
+                        buttons[1].setAttribute('onclick', `updateQuantity(${productId}, ${quantity + 1})`);
+                    }
+                }
+
+                const itemTotal = document.querySelector(`.item-total[data-product-id="${productId}"]`);
+                if (itemTotal) itemTotal.textContent = formatPrice(data.itemTotal);
+
+                const cartTotalElement = document.getElementById('cartTotal');
+                if (cartTotalElement) cartTotalElement.textContent = formatPrice(data.cartTotal);
+
+                updateCartBadge(data.cartCount, data.cartTotal);
+            } else {
+                showNotification(data.message, 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showNotification('Произошла ошибка', 'error');
+        });
+}
+
+/* ---------- BADGE КОРЗИНЫ ---------- */
+function updateCartBadge(count, total = null) {
+    const badges = document.querySelectorAll('.cart-badge');
+    badges.forEach(badge => {
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline-block';
+            badge.classList.remove('bump');
+            void badge.offsetWidth;
+            badge.classList.add('bump');
+
+            if (total !== null) {
+                const cartLink = badge.closest('.cart-link');
+                if (cartLink) {
+                    let totalBadge = cartLink.querySelector('.cart-total-badge');
+                    if (!totalBadge) {
+                        totalBadge = document.createElement('div');
+                        totalBadge.className = 'cart-total-badge';
+                        cartLink.appendChild(totalBadge);
+                    }
+                    totalBadge.textContent = formatPrice(total);
+                }
+            }
+        } else {
+            badge.style.display = 'none';
+            const cartLink = badge.closest('.cart-link');
+            if (cartLink) {
+                const totalBadge = cartLink.querySelector('.cart-total-badge');
+                if (totalBadge) totalBadge.remove();
+            }
+        }
+    });
+}
+
+/* ---------- УВЕДОМЛЕНИЯ ---------- */
 function showNotification(message, type = 'success') {
-    const container = ensureToastContainer();
-    const icons = { success: 'fa-check', error: 'fa-times', warning: 'fa-exclamation', info: 'fa-info' };
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
     const toast = document.createElement('div');
-    toast.className = `toast-custom ${type}`;
+    toast.className = `custom-toast ${type}`;
     toast.innerHTML = `
-        <div class="toast-icon"><i class="fas ${icons[type] || 'fa-info'}"></i></div>
-        <div class="toast-message">${message}</div>
+        <div class="d-flex align-items-center">
+            <i class="fas ${type === 'success' ? 'fa-check-circle text-success' : 'fa-exclamation-circle text-danger'} me-2"></i>
+            <span>${message}</span>
+        </div>
     `;
     container.appendChild(toast);
-    requestAnimationFrame(() => toast.classList.add('show'));
+
     setTimeout(() => {
-        toast.classList.remove('show');
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
         setTimeout(() => toast.remove(), 300);
-    }, 3500);
+    }, 3000);
 }
 
-// ============= ФОРМАТ ЦЕНЫ =============
+/* ---------- ФОРМАТИРОВАНИЕ ЦЕНЫ ---------- */
 function formatPrice(price) {
-    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0 }).format(price);
+    return parseFloat(price).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽';
 }
 
-// ============= КОРЗИНА: API-обёртка =============
-async function cartRequest(url, data) {
-    const formData = new FormData();
-    Object.entries(data).forEach(([k, v]) => formData.append(k, v));
-    formData.append('csrf_token', getCSRFToken());
-    const res = await fetch(url, { method: 'POST', body: formData });
-    return res.json();
+/* ---------- ЗАМЕНА КНОПКИ НА КОНТРОЛ +/- ---------- */
+function replaceButtonWithQuantityControl(productId, currentQty = 1) {
+    const buttons = document.querySelectorAll(`.add-to-cart-btn[data-product-id="${productId}"]`);
+    buttons.forEach(button => {
+        const controlDiv = document.createElement('div');
+        controlDiv.className = 'quantity-control-inline';
+        controlDiv.innerHTML = `
+            <button type="button" class="btn-qty-minus" onclick="updateProductQuantity(${productId}, -1)">-</button>
+            <span class="qty-display" id="qty-display-${productId}">${currentQty}</span>
+            <button type="button" class="btn-qty-plus" onclick="updateProductQuantity(${productId}, 1)">+</button>
+        `;
+        button.parentNode.replaceChild(controlDiv, button);
+    });
 }
 
-async function addToCart(productId, quantity = 1) {
-    try {
-        const data = await cartRequest('/api/cart-add.php', { product_id: productId, quantity });
-        if (data.success) {
-            updateCartBadge(data.cart_count, data.cart_total);
-            showNotification('Товар добавлен в корзину', 'success');
-            replaceButtonWithQuantityControl(productId, quantity);
-        } else {
-            showNotification(data.message || 'Ошибка добавления', 'error');
-        }
-    } catch (e) { showNotification('Ошибка сети', 'error'); }
-}
+/* ---------- +/- НА КАРТОЧКАХ ТОВАРОВ ---------- */
+function updateProductQuantity(productId, delta) {
+    const display = document.getElementById(`qty-display-${productId}`);
+    if (!display) return;
 
-async function removeFromCart(productId) {
-    try {
-        const data = await cartRequest('/api/cart-remove.php', { product_id: productId });
-        if (data.success) {
-            const row = document.querySelector(`tr[data-product-id="${productId}"]`);
-            if (row) row.remove();
-            updateCartBadge(data.cart_count, data.cart_total);
-            const totalEl = document.getElementById('cart-grand-total');
-            if (totalEl) totalEl.textContent = formatPrice(data.cart_total);
-            if (data.cart_count === 0) location.reload();
-            showNotification('Товар удалён', 'success');
-        }
-    } catch (e) { showNotification('Ошибка сети', 'error'); }
-}
+    let currentQty = parseInt(display.textContent) || 0;
+    let newQty = currentQty + delta;
 
-async function updateQuantity(productId, quantity) {
-    try {
-        const data = await cartRequest('/api/cart-update.php', { product_id: productId, quantity });
-        if (data.success) {
-            updateCartBadge(data.cart_count, data.cart_total);
-            const sub = document.querySelector(`tr[data-product-id="${productId}"] .item-subtotal`);
-            if (sub) sub.textContent = formatPrice(data.item_subtotal);
-            const totalEl = document.getElementById('cart-grand-total');
-            if (totalEl) totalEl.textContent = formatPrice(data.cart_total);
-        }
-    } catch (e) { showNotification('Ошибка сети', 'error'); }
-}
-
-async function updateProductQuantity(productId, delta) {
-    const ctrl = document.querySelector(`.qty-control[data-product-id="${productId}"]`);
-    if (!ctrl) return;
-    const valEl = ctrl.querySelector('.qty-value');
-    const newQty = parseInt(valEl.textContent) + delta;
     if (newQty < 1) {
-        await cartRequest('/api/cart-remove.php', { product_id: productId });
         restoreAddToCartButton(productId);
+        removeFromCart(productId);
         return;
     }
-    valEl.textContent = newQty;
-    await updateQuantity(productId, newQty);
-}
 
-function updateCartBadge(count, total) {
-    const link = document.querySelector('.cart-link');
-    if (!link) return;
-    let badge = link.querySelector('.cart-badge');
-    let totalBadge = link.querySelector('.cart-total-badge');
+    display.textContent = newQty;
 
-    if (count > 0) {
-        if (!badge) {
-            badge = document.createElement('span');
-            badge.className = 'cart-badge badge';
-            link.appendChild(badge);
-        }
-        badge.textContent = count;
-        badge.classList.add('bump');
-        setTimeout(() => badge.classList.remove('bump'), 300);
+    const token = getCSRFToken();
+    if (!token) return;
 
-        if (!totalBadge) {
-            totalBadge = document.createElement('div');
-            totalBadge.className = 'cart-total-badge';
-            link.appendChild(totalBadge);
-        }
-        totalBadge.textContent = formatPrice(total);
-    } else {
-        if (badge) badge.remove();
-        if (totalBadge) totalBadge.remove();
-    }
-}
+    const formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('quantity', newQty);
+    formData.append('csrf_token', token);
 
-function replaceButtonWithQuantityControl(productId, qty) {
-    const btn = document.querySelector(`.add-to-cart-btn[data-product-id="${productId}"]`);
-    if (!btn) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'qty-control';
-    wrap.dataset.productId = productId;
-    wrap.innerHTML = `
-        <button type="button" onclick="updateProductQuantity('${productId}', -1)">−</button>
-        <span class="qty-value">${qty}</span>
-        <button type="button" onclick="updateProductQuantity('${productId}', 1)">+</button>
-    `;
-    btn.replaceWith(wrap);
-}
-
-function restoreAddToCartButton(productId) {
-    const ctrl = document.querySelector(`.qty-control[data-product-id="${productId}"]`);
-    if (!ctrl) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn add-to-cart-btn';
-    btn.dataset.productId = productId;
-    btn.innerHTML = '<i class="fas fa-shopping-cart"></i> В корзину';
-    ctrl.replaceWith(btn);
-}
-
-// ============= СКРОЛЛ-ЭФФЕКТ НАВБАРА =============
-window.addEventListener('scroll', () => {
-    const nav = document.querySelector('.navbar');
-    if (!nav) return;
-    nav.classList.toggle('scrolled', window.scrollY > 30);
-});
-
-// ============= ДЕЛЕГИРОВАННЫЕ КЛИКИ =============
-document.addEventListener('click', e => {
-    const addBtn = e.target.closest('.add-to-cart-btn');
-    if (addBtn) {
-        const pid = addBtn.dataset.productId;
-        if (pid) addToCart(pid, 1);
-    }
-
-    const wishBtn = e.target.closest('.wishlist-btn');
-    if (wishBtn) {
-        wishBtn.classList.toggle('active');
-        const active = wishBtn.classList.contains('active');
-        showNotification(active ? 'Добавлено в избранное' : 'Убрано из избранного', active ? 'success' : 'info');
-        // TODO: AJAX к /api/wishlist.php когда добавим
-    }
-});
-
-// ============= АНИМАЦИИ ПОЯВЛЕНИЯ (AOS-lite) =============
-document.addEventListener('DOMContentLoaded', () => {
-    const items = document.querySelectorAll('[data-animate]');
-    if (!('IntersectionObserver' in window) || items.length === 0) {
-        items.forEach(i => i.classList.add('in-view'));
-        return;
-    }
-    const obs = new IntersectionObserver((entries) => {
-        entries.forEach(en => {
-            if (en.isIntersecting) {
-                const delay = en.target.dataset.animateDelay || 0;
-                setTimeout(() => en.target.classList.add('in-view'), delay);
-                obs.unobserve(en.target);
+    fetch('/api/cart-update.php', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                updateCartBadge(data.cartCount, data.cartTotal);
+                showNotification('Количество обновлено', 'success');
             }
-        });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    items.forEach(i => obs.observe(i));
-});
+        })
+        .catch(err => console.error(err));
+}
 
-// ============= LAZY-LOAD КАРТИНОК =============
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('img:not([loading])').forEach(img => img.loading = 'lazy');
-});
-
-// ============= ПОИСК С АВТОКОМПЛИТОМ =============
-let searchTimer;
-function initNavbarSearch() {
-    const input = document.getElementById('navbar-search-input');
-    const results = document.getElementById('navbar-search-results');
-    if (!input || !results) return;
-
-    input.addEventListener('input', e => {
-        clearTimeout(searchTimer);
-        const q = e.target.value.trim();
-        if (q.length < 2) { results.classList.remove('show'); return; }
-        searchTimer = setTimeout(() => fetchSearch(q, results), 250);
-    });
-
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.navbar-search')) results.classList.remove('show');
-    });
-
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const q = input.value.trim();
-            if (q) window.location.href = `/catalog.php?search=${encodeURIComponent(q)}`;
+/* ---------- ВОССТАНОВИТЬ КНОПКУ "В КОРЗИНУ" ---------- */
+function restoreAddToCartButton(productId) {
+    const controls = document.querySelectorAll('.quantity-control-inline');
+    controls.forEach(control => {
+        const minusBtn = control.querySelector('.btn-qty-minus');
+        if (minusBtn) {
+            const onclickAttr = minusBtn.getAttribute('onclick');
+            if (onclickAttr && onclickAttr.includes(productId)) {
+                const addBtn = document.createElement('button');
+                addBtn.className = 'btn btn-primary w-100 add-to-cart-btn';
+                addBtn.setAttribute('data-product-id', productId);
+                addBtn.innerHTML = '<i class="fas fa-cart-plus me-2"></i>В корзину';
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    addToCart(productId, 1);
+                });
+                control.parentNode.replaceChild(addBtn, control);
+            }
         }
     });
 }
 
-async function fetchSearch(query, container) {
-    try {
-        const res = await fetch(`/api/search.php?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (data.success && data.results.length > 0) {
-            container.innerHTML = data.results.map(p => `
-                <a href="/product.php?id=${p.id}" class="search-result-item">
-                    <img src="${p.image || '/assets/images/placeholder.png'}" alt="">
-                    <div>
-                        <div style="font-weight:600">${p.name}</div>
-                        <div style="font-size:0.85rem;color:var(--primary);font-weight:700">${formatPrice(p.price)}</div>
-                    </div>
-                </a>
-            `).join('');
-        } else {
-            container.innerHTML = `<div class="search-result-item" style="cursor:default;color:var(--text-muted)">Ничего не найдено</div>`;
-        }
-        container.classList.add('show');
-    } catch (e) {
-        container.innerHTML = `<div class="search-result-item" style="cursor:default;color:var(--text-muted)">Поиск временно недоступен</div>`;
-        container.classList.add('show');
+/* ---------- ДЕЛЕГАТ КЛИК ПО "В КОРЗИНУ" ---------- */
+document.addEventListener('click', function(e) {
+    const button = e.target.closest('.add-to-cart-btn');
+    if (button) {
+        e.preventDefault();
+        const productId = button.dataset.productId;
+        addToCart(productId, 1);
     }
-}
+});
 
-document.addEventListener('DOMContentLoaded', initNavbarSearch);
+/* ---------- АНИМАЦИЯ ПОЯВЛЕНИЯ ПРИ СКРОЛЛЕ ---------- */
+const observerOptions = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('animate-fade-in');
+            observer.unobserve(entry.target);
+        }
+    });
+}, observerOptions);
+
+document.addEventListener('DOMContentLoaded', function() {
+    const elements = document.querySelectorAll('[data-animate]');
+    elements.forEach(el => observer.observe(el));
+});
+
+/* ---------- RIPPLE НА КНОПКАХ "В КОРЗИНУ" ---------- */
+document.addEventListener('click', function(e) {
+    const button = e.target.closest('.add-to-cart-btn');
+    if (button) {
+        const ripple = document.createElement('span');
+        ripple.style.cssText = `
+            position: absolute; border-radius: 50%;
+            background: rgba(255,255,255,0.6);
+            transform: scale(0); pointer-events: none;
+            animation: ripple 0.6s linear;
+        `;
+        const rect = button.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+        button.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
+    }
+});
