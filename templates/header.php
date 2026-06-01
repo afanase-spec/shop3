@@ -114,7 +114,13 @@
                         </li>
                     <?php endif; ?>
 
-                    <?php if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in']): ?>
+                    <?php 
+$isClassicAdmin = isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
+$isUserAdmin    = isset($_SESSION['user_logged_in']) 
+                  && $_SESSION['user_logged_in'] === true 
+                  && ($_SESSION['user_role'] ?? 'user') === 'admin';
+if ($isClassicAdmin || $isUserAdmin): 
+?>
     <li class="nav-item ms-lg-2">
         <a class="nav-link admin-link" href="<?= SITE_URL ?>/admin/" title="Панель администратора">
             <span class="admin-link-inner">

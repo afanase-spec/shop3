@@ -1,9 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
 
-// Если уже авторизован, редирект на главную
+// Если уже авторизован, редирект в зависимости от роли
 if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in']) {
-    redirect('/');
+    if (($_SESSION['user_role'] ?? 'user') === 'admin') {
+        redirect('/admin/');
+    } else {
+        redirect('/');
+    }
 }
 
 $error = '';
@@ -24,24 +28,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             
-            // СТАЛО
-if ($user && password_verify($password, $user['password_hash'])) {
-    $_SESSION['user_logged_in'] = true;
-    $_SESSION['user_id']    = $user['id'];
-    $_SESSION['user_name']  = $user['name'];
-    $_SESSION['user_email'] = $user['email'];
-    $_SESSION['user_role']  = $user['role'] ?? 'user';   // ← НОВОЕ
-    
-    // Если пользователь — админ, ведём в админ-панель, иначе в профиль
-    if ($_SESSION['user_role'] === 'admin') {
-        redirect('/admin/');
-    } else {
-        redirect('/profile.php');
-    }
-}
+            if ($user && password_verify($password, $user['password_hash'])) {
+                $_SESSION['user_logged_in'] = true;
+                $_SESSION['user_id']    = $user['id'];
+                $_SESSION['user_name']  = $user['name'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['user_role']  = $user['role'] ?? 'user';
                 
-                setFlashMessage('Добро пожаловать, ' . escape($user['name']) . '!', 'success');
-                redirect('/');
+                // Если пользователь — админ, ведём в админ-панель
+                if ($_SESSION['user_role'] === 'admin') {
+                    setFlashMessage('Добро пожаловать в админ-панель, ' . escape($user['name']) . '!', 'success');
+                    redirect('/admin/');
+                } else {
+                    setFlashMessage('Добро пожаловать, ' . escape($user['name']) . '!', 'success');
+                    redirect('/');
+                }
             } else {
                 $error = 'Неверный email или пароль';
             }

@@ -1,6 +1,29 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
 
+/**
+ * Валидация и нормализация телефона.
+ */
+if (!function_exists('validatePhoneFormat')) {
+    function validatePhoneFormat($phone) {
+        if (empty($phone)) return true;
+        $digits = preg_replace('/\D/', '', $phone);
+        return strlen($digits) === 11 && substr($digits, 0, 2) === '79';
+    }
+}
+if (!function_exists('normalizePhone')) {
+    function normalizePhone($phone) {
+        if (empty($phone)) return '';
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) !== 11) return $phone;
+        return sprintf('+7(%s) %s-%s-%s',
+            substr($digits, 1, 3),
+            substr($digits, 4, 3),
+            substr($digits, 7, 2),
+            substr($digits, 9, 2)
+        );
+    }
+}
 // Проверка авторизации
 if (!isset($_SESSION['user_logged_in']) || !$_SESSION['user_logged_in']) {
     setFlashMessage('Для доступа к профилю необходимо войти', 'warning');
@@ -38,6 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     } else {
         $name = trim($_POST['name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        if (!empty($phone) && !validatePhoneFormat($phone)) {
+    setFlashMessage('Телефон должен быть в формате +7(9XX) XXX-XX-XX', 'danger');
+    redirect('/profile.php');
+}
+$phone = normalizePhone($phone);
         $address = trim($_POST['address'] ?? '');
         
         if (empty($name)) {
@@ -160,9 +188,11 @@ include __DIR__ . '/templates/header.php';
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Телефон</label>
                             <input type="tel" 
-                                   class="form-control" 
-                                   name="phone"
-                                   value="<?= escape($user['phone'] ?? '') ?>">
+       class="form-control" 
+       name="phone"
+       data-phone-mask
+       placeholder="+7(9XX) XXX-XX-XX"
+       value="<?= escape($user['phone'] ?? '') ?>">
                         </div>
                         
                         <div class="col-md-6">
@@ -331,5 +361,5 @@ include __DIR__ . '/templates/header.php';
         </div>
     <?php endif; ?>
 </div>
-
+<script src="<?= SITE_URL ?>/assets/js/phone-mask.js"></script>
 <?php include __DIR__ . '/templates/footer.php'; ?>

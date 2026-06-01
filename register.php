@@ -9,6 +9,33 @@ if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in']) {
 $error = '';
 $success = '';
 
+/**
+ * Валидация телефона: должен быть в формате +7(9XX) XXX-XX-XX
+ * Принимаем любой ввод, но проверяем что после очистки получается 11 цифр (79XXXXXXXXX).
+ */
+function validatePhoneFormat($phone) {
+    if (empty($phone)) return true; // телефон необязателен
+    $digits = preg_replace('/\D/', '', $phone);
+    // должно быть ровно 11 цифр, начинаться с 79
+    return strlen($digits) === 11 && substr($digits, 0, 2) === '79';
+}
+
+/**
+ * Нормализуем телефон к виду +7(9XX) XXX-XX-XX перед записью в БД
+ */
+function normalizePhone($phone) {
+    if (empty($phone)) return '';
+    $digits = preg_replace('/\D/', '', $phone);
+    if (strlen($digits) !== 11) return $phone;
+    // 7 9 XX XXX XX XX
+    return sprintf('+7(%s) %s-%s-%s',
+        substr($digits, 1, 3),  // 9XX
+        substr($digits, 4, 3),  // XXX
+        substr($digits, 7, 2),  // XX
+        substr($digits, 9, 2)   // XX
+    );
+}
+
 // Обработка регистрации
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || !validateCSRFToken($_POST['csrf_token'])) {
@@ -26,7 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Пароль должен быть не менее 6 символов';
         } elseif (empty($name)) {
             $error = 'Введите ваше имя';
+        } elseif (!empty($phone) && !validatePhoneFormat($phone)) {
+            $error = 'Телефон должен быть в формате +7(9XX) XXX-XX-XX';
         } else {
+            $phone = normalizePhone($phone);
             $db = getDB();
             
             // Проверяем, существует ли пользователь
@@ -125,8 +155,10 @@ $pageTitle = 'Регистрация - ' . SITE_NAME;
                         <input type="tel" 
                                class="form-control" 
                                name="phone"
-                               placeholder="+7 (999) 123-45-67"
+                               data-phone-mask
+                               placeholder="+7(9XX) XXX-XX-XX"
                                value="<?= escape($_POST['phone'] ?? '') ?>">
+                        <small class="text-muted">Формат: +7(9XX) XXX-XX-XX</small>
                     </div>
                     
                     <div class="mb-4">
@@ -162,5 +194,6 @@ $pageTitle = 'Регистрация - ' . SITE_NAME;
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="<?= SITE_URL ?>/assets/js/phone-mask.js"></script>
 </body>
 </html>
