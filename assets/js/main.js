@@ -148,10 +148,11 @@ function removeFromCart(productId) {
 /* ---------- ОБНОВИТЬ КОЛ-ВО (таблица корзины) ---------- */
 const _pendingCartUpdates = new Set(); // защита от двойных кликов
 
+const _pendingCartUpdates = new Set();
+
 function updateQuantity(productId, quantity) {
     if (quantity < 1) { removeFromCart(productId); return; }
 
-    // Защита от race condition при быстрых кликах
     if (_pendingCartUpdates.has(productId)) return;
     _pendingCartUpdates.add(productId);
 
@@ -162,7 +163,6 @@ function updateQuantity(productId, quantity) {
         return;
     }
 
-    // Блокируем кнопки на время запроса
     const row = document.querySelector(`tr[data-product-id="${productId}"]`);
     const buttons = row ? row.querySelectorAll('.quantity-control button') : [];
     buttons.forEach(b => b.disabled = true);
@@ -176,45 +176,44 @@ function updateQuantity(productId, quantity) {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                // 1. Обновляем input с количеством
+                // 1. Input количества
                 const qtyInput = document.getElementById(`qty-${productId}`);
                 if (qtyInput) qtyInput.value = quantity;
 
-                // 2. Перепривязываем onclick на кнопках +/-
+                // 2. Перепривязка onclick на кнопках +/−
                 if (row) {
                     const decreaseBtn = row.querySelector('.btn-qty-decrease');
                     const increaseBtn = row.querySelector('.btn-qty-increase');
                     if (decreaseBtn) {
                         decreaseBtn.setAttribute('onclick', `updateQuantity(${productId}, ${quantity - 1})`);
-                        decreaseBtn.disabled = (quantity <= 1);
                     }
                     if (increaseBtn) {
                         increaseBtn.setAttribute('onclick', `updateQuantity(${productId}, ${quantity + 1})`);
                     }
                 }
 
-                // 3. Обновляем сумму по товару с подсветкой
+                // 3. Сумма по товару
                 const itemTotal = document.querySelector(`.item-total[data-product-id="${productId}"]`);
                 if (itemTotal) {
                     itemTotal.textContent = formatPrice(data.itemTotal);
                     flashUpdate(itemTotal);
                 }
 
-                // 4. Обновляем общую сумму корзины с подсветкой
+                // 4. Общая сумма
                 const cartTotalElement = document.getElementById('cartTotal');
                 if (cartTotalElement) {
                     cartTotalElement.textContent = formatPrice(data.cartTotal);
                     flashUpdate(cartTotalElement);
                 }
 
-                // 5. Обновляем счётчик "Товары (N шт.)"
+                // 5. Счётчик "Товары (N шт.)"
                 const itemsCount = document.getElementById('cartItemsCount');
                 if (itemsCount) {
                     itemsCount.textContent = data.cartCount;
                     flashUpdate(itemsCount);
                 }
 
-                // 6. Обновляем бейдж корзины в навбаре
+                // 6. Бейдж и плашка с суммой в навбаре
                 updateCartBadge(data.cartCount, data.cartTotal);
             } else {
                 showNotification(data.message || 'Ошибка обновления', 'error');
@@ -226,7 +225,6 @@ function updateQuantity(productId, quantity) {
         })
         .finally(() => {
             _pendingCartUpdates.delete(productId);
-            // Разблокируем кнопки (с учётом disabled у "−" при qty=1)
             if (row) {
                 const decreaseBtn = row.querySelector('.btn-qty-decrease');
                 const increaseBtn = row.querySelector('.btn-qty-increase');
@@ -237,6 +235,14 @@ function updateQuantity(productId, quantity) {
                 }
             }
         });
+}
+
+/* ---------- ПОДСВЕТКА ОБНОВЛЁННОГО ЭЛЕМЕНТА ---------- */
+function flashUpdate(element) {
+    if (!element) return;
+    element.classList.remove('cart-flash');
+    void element.offsetWidth;
+    element.classList.add('cart-flash');
 }
 
 /* ---------- ПОДСВЕТКА ОБНОВЛЁННОГО ЭЛЕМЕНТА ---------- */
