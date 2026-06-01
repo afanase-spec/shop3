@@ -24,11 +24,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             
-            if ($user && password_verify($password, $user['password_hash'])) {
-                $_SESSION['user_logged_in'] = true;
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_name'] = $user['name'];
-                $_SESSION['user_email'] = $user['email'];
+            // СТАЛО
+if ($user && password_verify($password, $user['password_hash'])) {
+    $_SESSION['user_logged_in'] = true;
+    $_SESSION['user_id']    = $user['id'];
+    $_SESSION['user_name']  = $user['name'];
+    $_SESSION['user_email'] = $user['email'];
+    $_SESSION['user_role']  = $user['role'] ?? 'user';   // ← НОВОЕ
+    
+    // Если пользователь — админ, ведём в админ-панель, иначе в профиль
+    if ($_SESSION['user_role'] === 'admin') {
+        redirect('/admin/');
+    } else {
+        redirect('/profile.php');
+    }
+}
                 
                 setFlashMessage('Добро пожаловать, ' . escape($user['name']) . '!', 'success');
                 redirect('/');

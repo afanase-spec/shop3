@@ -102,9 +102,9 @@ include __DIR__ . '/templates/header.php';
     </div>
     
     <div class="row g-4">
-        <!-- Список товаров -->
-        <div class="col-lg-9">
-            <div id="productsContainer">
+    <!-- Список товаров -->
+    <div class="col-12">
+        <div id="productsContainer">
                 <?php if (empty($products)): ?>
                     <div class="text-center py-5">
                         <i class="fas fa-search fa-3x text-muted mb-3"></i>
@@ -118,7 +118,7 @@ include __DIR__ . '/templates/header.php';
                             $productRating = $ratings[(int)$product['id']] ?? null;
                             ?>
                             <div class="col-md-6 col-xl-4">
-                                <div class="product-card animate-fade-in">
+                                <div class="product-card">
                                     <a href="<?= SITE_URL ?>/product.php?id=<?= $product['id'] ?>">
                                         <img src="<?= escape($product['image'] ?: '/assets/images/placeholder.jpg') ?>" 
                                              alt="<?= escape($product['name']) ?>">

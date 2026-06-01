@@ -2208,3 +2208,51 @@ body.page-loading .product-card {
         font-size: 1.75rem;
     }
 }
+/* ============================================
+   КАТАЛОГ: центрирование + отключение анимаций
+   ============================================ */
+
+/* Центрируем ряд карточек на странице каталога */
+#productsContainer > .row {
+    justify-content: center;
+}
+
+/* Убираем анимацию появления у карточек товаров */
+.product-card.animate-fade-in,
+.product-card {
+    animation: none !important;
+}
+
+/* Оставляем только аккуратный hover-эффект без переливаний */
+.product-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Убираем масштабирование картинки при наведении (это и есть «переливание») */
+.product-card:hover img {
+    transform: none;
+    border-color: transparent;
+}
+
+/* Убираем «прыжки» кнопки купить при наведении */
+.product-card .add-to-cart-btn {
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.product-card .add-to-cart-btn:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.product-card .add-to-cart-btn:hover i {
+    transform: none;
+}
+
+/* Убираем общую анимацию контейнера, из-за неё страница «всплывает» */
+.container {
+    animation: none !important;
+}

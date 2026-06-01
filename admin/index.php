@@ -81,6 +81,24 @@ include __DIR__ . '/../templates/header.php';
                 </div>
             </a>
         </div>
+        <!-- Пользователи -->
+<div class="col-md-6 col-lg-4">
+    <a href="<?= SITE_URL ?>/admin/users.php" class="text-decoration-none">
+        <div class="card border-0 shadow-sm rounded-4 p-4 h-100 admin-card">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="admin-card-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-users"></i>
+                </div>
+                <?php
+                $usersCount = (int)$db->query("SELECT COUNT(*) FROM users")->fetchColumn();
+                ?>
+                <span class="badge bg-light text-dark"><?= $usersCount ?></span>
+            </div>
+            <h5 class="fw-bold mb-2">Пользователи</h5>
+            <p class="text-muted small mb-0">Управление зарегистрированными клиентами</p>
+        </div>
+    </a>
+</div>
         <!-- Email-уведомления -->
 <div class="col-md-6 col-lg-4">
     <a href="<?= SITE_URL ?>/admin/email_log.php" class="text-decoration-none">

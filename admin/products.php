@@ -54,7 +54,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = 'Товар успешно обновлен';
             }
         }
+    
     }
+// После успешного UPDATE products SET ...
+setFlashMessage('Товар успешно обновлён', 'success');
+
+// Собираем URL возврата из POST'a
+$returnParams = [];
+if (!empty($_POST['return_page']))     $returnParams['page']     = (int)$_POST['return_page'];
+if (!empty($_POST['return_category'])) $returnParams['category'] = (int)$_POST['return_category'];
+if (!empty($_POST['return_search']))   $returnParams['search']   = trim($_POST['return_search']);
+
+$redirectUrl = '/admin/products.php' 
+    . (!empty($returnParams) ? '?' . http_build_query($returnParams) : '');
+
+redirect($redirectUrl);
+exit;    
 }
 
 // Режим редактирования
@@ -114,6 +129,19 @@ if (!$editProduct && !isset($_GET['add'])) {
     $products = $stmt->fetchAll();
 }
 
+// ============================================
+// ВОЗВРАТ К СПИСКУ — сохраняем фильтры/страницу
+// ============================================
+// Параметры списка, которые надо сохранить при переходе в форму редактирования
+$listParams = [];
+if (!empty($_GET['page']))     $listParams['page']     = (int)$_GET['page'];
+if (!empty($_GET['category'])) $listParams['category'] = (int)$_GET['category'];
+if (!empty($_GET['search']))   $listParams['search']   = trim($_GET['search']);
+
+// URL для кнопки «Назад к списку»
+$backToListUrl = SITE_URL . '/admin/products.php' 
+    . (!empty($listParams) ? '?' . http_build_query($listParams) : '');
+
 include __DIR__ . '/../templates/header.php';
 ?>
 
@@ -122,9 +150,9 @@ include __DIR__ . '/../templates/header.php';
         <h1 class="fw-bold">Управление товарами</h1>
         <div>
             <?php if ($editProduct || isset($_GET['add'])): ?>
-                <a href="<?= SITE_URL ?>/admin/products.php" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>Назад к списку
-                </a>
+                <a href="<?= escape($backToListUrl) ?>" class="btn btn-outline-secondary">
+    <i class="fas fa-arrow-left me-2"></i>Назад к списку
+</a>
             <?php else: ?>
                 <a href="<?= SITE_URL ?>/admin/products.php?add=1" class="btn btn-primary">
                     <i class="fas fa-plus me-2"></i>Добавить товар
@@ -364,13 +392,27 @@ include __DIR__ . '/../templates/header.php';
                                             <?= $product['is_popular'] ? '<span class="badge bg-success">Да</span>' : '<span class="badge bg-secondary">Нет</span>' ?>
                                         </td>
                                         <td>
-                                            <a href="?edit=<?= $product['id'] ?>" class="btn btn-sm btn-outline-primary me-1">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
+                                            <?php
+$editParams = array_merge(['edit' => $product['id']], $listParams);
+$editUrl = SITE_URL . '/admin/products.php?' . http_build_query($editParams);
+?>
+<a href="<?= escape($editUrl) ?>" class="btn btn-sm btn-outline-primary">
+    <i class="fas fa-edit"></i>
+</a>
                                             <form method="POST" class="d-inline" onsubmit="return confirm('Удалить товар?');">
                                                 <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                                 <input type="hidden" name="delete_id" value="<?= $product['id'] ?>">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <!-- Сохранение контекста списка для возврата -->
+<?php if (!empty($listParams['page'])): ?>
+    <input type="hidden" name="return_page" value="<?= (int)$listParams['page'] ?>">
+<?php endif; ?>
+<?php if (!empty($listParams['category'])): ?>
+    <input type="hidden" name="return_category" value="<?= (int)$listParams['category'] ?>">
+<?php endif; ?>
+<?php if (!empty($listParams['search'])): ?>
+    <input type="hidden" name="return_search" value="<?= escape($listParams['search']) ?>">
+<?php endif; ?>
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </form>
