@@ -115,13 +115,18 @@
                     <?php endif; ?>
 
                     <?php if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in']): ?>
-                        <li class="nav-item ms-lg-2">
-                            <a class="nav-link admin-link" href="<?= SITE_URL ?>/admin/">
-                                <i class="fas fa-cog me-1"></i> Админка
-                                <span class="admin-badge">ADMIN</span>
-                            </a>
-                        </li>
-                    <?php endif; ?>
+    <li class="nav-item ms-lg-2">
+        <a class="nav-link admin-link" href="<?= SITE_URL ?>/admin/" title="Панель администратора">
+            <span class="admin-link-inner">
+                <i class="fas fa-shield-halved admin-link-icon"></i>
+                <span class="admin-link-text">Админка</span>
+                <span class="admin-badge">
+                    <span class="admin-badge-dot"></span>ADMIN
+                </span>
+            </span>
+        </a>
+    </li>
+<?php endif; ?>
                 </ul>
             </div>
         </div>

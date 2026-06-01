@@ -28,6 +28,22 @@ $relatedProducts = $stmt->fetchAll();
 include __DIR__ . '/templates/header.php';
 ?>
 
+<?php
+// Хлебные крошки для страницы товара
+$breadcrumbs = [
+    ['Каталог', '/catalog.php']
+];
+
+// Если у товара есть категория — добавляем её
+if (!empty($product['category_name']) && !empty($product['category_id'])) {
+    $breadcrumbs[] = [$product['category_name'], '/catalog.php?category=' . (int)$product['category_id']];
+}
+
+$breadcrumbs[] = [$product['name'], null];
+
+include __DIR__ . '/templates/breadcrumbs.php';
+?>
+
 <div class="container my-5 product-detail">
     <!-- Карточка товара -->
     <div class="row g-4 mb-5">

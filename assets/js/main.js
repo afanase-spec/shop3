@@ -466,3 +466,280 @@ document.addEventListener('click', function(e) {
         setTimeout(() => ripple.remove(), 600);
     }
 });
+/* ============================================
+   ЖИВОЙ ПОИСК ТОВАРОВ
+   ============================================ */
+(function() {
+    const searchInput = document.getElementById('liveSearchInput');
+    const searchDropdown = document.getElementById('searchDropdown');
+    const searchResults = document.getElementById('searchResults');
+    const searchClear = document.getElementById('searchClear');
+    
+    if (!searchInput || !searchDropdown || !searchResults) {
+        return; // На странице нет поиска — выходим
+    }
+    
+    let debounceTimer = null;
+    let currentRequestController = null;
+    let activeIndex = -1;
+    let currentResults = [];
+    
+    const SITE_URL = window.SITE_URL || '';
+    const DEBOUNCE_MS = 300;
+    const MIN_QUERY_LENGTH = 2;
+    
+    // Подсветка совпадений в названии
+    function highlightMatch(text, query) {
+        if (!query) return escapeHtml(text);
+        const escapedText = escapeHtml(text);
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp('(' + escapedQuery + ')', 'gi');
+        return escapedText.replace(regex, '<mark>$1</mark>');
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Рендер dropdown
+    function renderResults(data, query) {
+        currentResults = data.results || [];
+        activeIndex = -1;
+        
+        if (currentResults.length === 0) {
+            searchResults.innerHTML = `
+                <div class="search-state">
+                    <i class="fas fa-search"></i>
+                    <div>По запросу <strong>"${escapeHtml(query)}"</strong> ничего не найдено</div>
+                </div>
+            `;
+        } else {
+            searchResults.innerHTML = currentResults.map((item, idx) => `
+                <a href="${escapeHtml(item.url)}" class="search-result-item" data-index="${idx}">
+                    <img src="${escapeHtml(SITE_URL + item.image)}" 
+                         alt="${escapeHtml(item.name)}" 
+                         class="search-result-image"
+                         onerror="this.src='${SITE_URL}/assets/images/placeholder.jpg'">
+                    <div class="search-result-info">
+                        <div class="search-result-name">${highlightMatch(item.name, query)}</div>
+                        <div class="search-result-meta">
+                            <span class="search-result-price">${escapeHtml(item.price)}</span>
+                            ${item.category ? `<span class="search-result-category">• ${escapeHtml(item.category)}</span>` : ''}
+                        </div>
+                    </div>
+                </a>
+            `).join('');
+        }
+        
+        openDropdown();
+    }
+    
+    function renderLoading() {
+        searchResults.innerHTML = `
+            <div class="search-state search-state-loading">
+                <i class="fas fa-circle-notch"></i>
+                <div>Ищем...</div>
+            </div>
+        `;
+        openDropdown();
+    }
+    
+    function openDropdown() {
+        searchDropdown.classList.add('open');
+    }
+    
+    function closeDropdown() {
+        searchDropdown.classList.remove('open');
+        activeIndex = -1;
+    }
+    
+    // Сам поиск
+    async function doSearch(query) {
+        // Отменяем предыдущий запрос если есть
+        if (currentRequestController) {
+            currentRequestController.abort();
+        }
+        
+        currentRequestController = new AbortController();
+        
+        try {
+            const response = await fetch(
+                `${SITE_URL}/api/search.php?q=${encodeURIComponent(query)}`,
+                { signal: currentRequestController.signal }
+            );
+            
+            if (!response.ok) throw new Error('Network error');
+            
+            const data = await response.json();
+            renderResults(data, query);
+            
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            
+            searchResults.innerHTML = `
+                <div class="search-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>Ошибка поиска. Попробуйте ещё раз.</div>
+                </div>
+            `;
+            openDropdown();
+        }
+    }
+    
+    // Обработка ввода
+    searchInput.addEventListener('input', function(e) {
+        const query = e.target.value.trim();
+        
+        // Показать/скрыть кнопку очистки
+        if (query.length > 0) {
+            searchClear.classList.add('visible');
+        } else {
+            searchClear.classList.remove('visible');
+            closeDropdown();
+            return;
+        }
+        
+        // Меньше минимума — закрываем
+        if (query.length < MIN_QUERY_LENGTH) {
+            closeDropdown();
+            return;
+        }
+        
+        // Debounce
+        clearTimeout(debounceTimer);
+        renderLoading();
+        debounceTimer = setTimeout(() => doSearch(query), DEBOUNCE_MS);
+    });
+    
+    // Фокус — открыть если есть результаты
+    searchInput.addEventListener('focus', function() {
+        if (currentResults.length > 0 && searchInput.value.trim().length >= MIN_QUERY_LENGTH) {
+            openDropdown();
+        }
+    });
+    
+    // Очистка
+    searchClear.addEventListener('click', function() {
+        searchInput.value = '';
+        searchClear.classList.remove('visible');
+        closeDropdown();
+        searchInput.focus();
+    });
+    
+    // Навигация стрелками
+    searchInput.addEventListener('keydown', function(e) {
+        const items = searchResults.querySelectorAll('.search-result-item');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (items.length === 0) return;
+            activeIndex = Math.min(activeIndex + 1, items.length - 1);
+            updateActiveItem(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (items.length === 0) return;
+            activeIndex = Math.max(activeIndex - 1, -1);
+            updateActiveItem(items);
+        } else if (e.key === 'Enter') {
+            if (activeIndex >= 0 && items[activeIndex]) {
+                e.preventDefault();
+                window.location.href = items[activeIndex].href;
+            }
+        } else if (e.key === 'Escape') {
+            closeDropdown();
+            searchInput.blur();
+        }
+    });
+    
+    function updateActiveItem(items) {
+        items.forEach((item, idx) => {
+            if (idx === activeIndex) {
+                item.classList.add('active');
+                item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    }
+    
+    // Клик вне поиска — закрываем
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+            closeDropdown();
+        }
+    });
+    
+})();
+/* ============================================
+   СКЕЛЕТОН-ЛОАДЕРЫ
+   ============================================ */
+(function() {
+    
+    // === 1. Пульсация картинок товаров пока грузятся ===
+    function initImageSkeletons() {
+        const images = document.querySelectorAll('.product-card img, .product-image');
+        
+        images.forEach(img => {
+            if (img.complete && img.naturalHeight !== 0) {
+                // Уже загружено (из кэша)
+                img.classList.add('loaded');
+            } else {
+                img.addEventListener('load', () => img.classList.add('loaded'));
+                img.addEventListener('error', () => img.classList.add('loaded'));
+            }
+        });
+    }
+    
+    // === 2. Прелоадер при переходе по фильтрам / пагинации ===
+    function initPageTransitionLoader() {
+        // Создаём оверлей-полоску
+        const overlay = document.createElement('div');
+        overlay.className = 'page-transition-overlay';
+        document.body.appendChild(overlay);
+        
+        const showLoader = () => {
+            overlay.classList.add('active');
+            document.body.classList.add('page-loading');
+        };
+        
+        // 2.1 Кнопка "Применить фильтры" на каталоге
+        const filterBtn = document.querySelector('button[onclick="applyFilters()"]');
+        if (filterBtn) {
+            filterBtn.addEventListener('click', showLoader);
+        }
+        
+        // 2.2 Enter в поле поиска каталога
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') showLoader();
+            });
+        }
+        
+        // 2.3 Клики по пагинации
+        document.querySelectorAll('.pagination .page-link').forEach(link => {
+            link.addEventListener('click', showLoader);
+        });
+        
+        // 2.4 Смена категории через select
+        const categoryFilter = document.getElementById('categoryFilter');
+        if (categoryFilter) {
+            // На случай если кто-то захочет автоприменять (на будущее)
+            // Не вешаем сейчас — у тебя сейчас фильтры применяются кнопкой
+        }
+    }
+    
+    // Запуск
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            initImageSkeletons();
+            initPageTransitionLoader();
+        });
+    } else {
+        initImageSkeletons();
+        initPageTransitionLoader();
+    }
+    
+})();

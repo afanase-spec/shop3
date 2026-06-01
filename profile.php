@@ -90,6 +90,8 @@ foreach ($orders as $order) {
 include __DIR__ . '/templates/header.php';
 ?>
 
+<?php $breadcrumbs = [['Мой профиль', null]]; include __DIR__ . '/templates/breadcrumbs.php'; ?>
+
 <div class="container my-5">
     <h1 class="section-title">Мой профиль</h1>
     

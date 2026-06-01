@@ -60,6 +60,8 @@ $products = $stmt->fetchAll();
 include __DIR__ . '/templates/header.php';
 ?>
 
+<?php $breadcrumbs = [['Каталог', null]]; include __DIR__ . '/templates/breadcrumbs.php'; ?>
+
 <div class="container my-5">
     <h1 class="section-title">Каталог товаров</h1>
     

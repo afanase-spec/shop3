@@ -178,3 +178,40 @@ function setFlashMessage(string $message, string $type = 'success'): void {
         'type' => $type
     ];
 }
+/**
+ * Живой поиск товаров по названию
+ * 
+ * @param string $query Поисковая строка
+ * @param int $limit Максимум результатов (по умолчанию 8)
+ * @return array Массив товаров с полями id, name, price, image, category_name
+ */
+function searchProducts(string $query, int $limit = 8): array {
+    $query = trim($query);
+    
+    // Минимум 2 символа для поиска
+    if (mb_strlen($query) < 2) {
+        return [];
+    }
+    
+    $db = getDB();
+    $searchTerm = '%' . $query . '%';
+    
+    $stmt = $db->prepare("
+        SELECT p.id, p.name, p.price, p.image, c.name AS category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.name LIKE ?
+        ORDER BY 
+            CASE 
+                WHEN p.name LIKE ? THEN 1
+                ELSE 2
+            END,
+            p.name ASC
+        LIMIT " . (int)$limit
+    );
+    
+    // Первый параметр — общий поиск, второй — приоритет для совпадений в начале
+    $stmt->execute([$searchTerm, $query . '%']);
+    
+    return $stmt->fetchAll();
+}

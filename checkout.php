@@ -75,6 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include __DIR__ . '/templates/header.php';
 ?>
 
+<?php $breadcrumbs = [
+    ['Корзина', '/cart.php'],
+    ['Оформление заказа', null]
+]; include __DIR__ . '/templates/breadcrumbs.php'; ?>
+
 <div class="container my-5">
     <?php if ($success): ?>
         <div class="text-center py-5">

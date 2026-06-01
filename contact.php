@@ -6,6 +6,8 @@ $pageTitle = 'Контакты - ' . SITE_NAME;
 include __DIR__ . '/templates/header.php';
 ?>
 
+<?php $breadcrumbs = [['Контакты', null]]; include __DIR__ . '/templates/breadcrumbs.php'; ?>
+
 <div class="container my-5">
     <h1 class="section-title">Контакты</h1>
     
