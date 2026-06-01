@@ -10,6 +10,14 @@ $todayRevenue = $db->query("SELECT COALESCE(SUM(total), 0) as sum FROM orders WH
 $totalProducts = $db->query("SELECT COUNT(*) as count FROM products")->fetch()['count'];
 $newOrders = $db->query("SELECT COUNT(*) as count FROM orders WHERE status = 'new'")->fetch()['count'];
 
+// Отзывы на модерации (защищаемся от ошибки, если таблица ещё не создана)
+$pendingReviews = 0;
+try {
+    $pendingReviews = (int)$db->query("SELECT COUNT(*) as count FROM reviews WHERE status = 'pending'")->fetch()['count'];
+} catch (Exception $e) {
+    // Таблица reviews ещё не создана — миграция не выполнена
+}
+
 // Последние заказы
 $stmt = $db->query("SELECT * FROM orders ORDER BY created_at DESC LIMIT 10");
 $recentOrders = $stmt->fetchAll();
@@ -27,7 +35,7 @@ include __DIR__ . '/../templates/header.php';
     
     <!-- Карточки статистики -->
     <div class="row g-4 mb-5">
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-4 text-center">
                 <i class="fas fa-shopping-bag fa-2x text-primary mb-3"></i>
                 <h3 class="fw-bold mb-1"><?= $todayOrders ?></h3>
@@ -35,7 +43,7 @@ include __DIR__ . '/../templates/header.php';
             </div>
         </div>
         
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-4 text-center">
                 <i class="fas fa-ruble-sign fa-2x text-success mb-3"></i>
                 <h3 class="fw-bold mb-1"><?= formatPrice($todayRevenue) ?></h3>
@@ -43,7 +51,7 @@ include __DIR__ . '/../templates/header.php';
             </div>
         </div>
         
-        <div class="col-md-3">
+        <div class="col-md-3 col-sm-6">
             <div class="card border-0 shadow-sm rounded-4 p-4 text-center">
                 <i class="fas fa-box fa-2x text-info mb-3"></i>
                 <h3 class="fw-bold mb-1"><?= $totalProducts ?></h3>
@@ -51,8 +59,8 @@ include __DIR__ . '/../templates/header.php';
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm rounded-4 p-4 text-center">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm rounded-4 p-4 text-center position-relative">
                 <i class="fas fa-clock fa-2x text-warning mb-3"></i>
                 <h3 class="fw-bold mb-1"><?= $newOrders ?></h3>
                 <p class="text-muted mb-0">Новых заказов</p>
@@ -62,7 +70,7 @@ include __DIR__ . '/../templates/header.php';
     
     <!-- Быстрые действия -->
     <div class="row g-4 mb-5">
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
             <a href="<?= SITE_URL ?>/admin/products.php" class="card border-0 shadow-sm rounded-4 p-4 text-decoration-none h-100">
                 <div class="d-flex align-items-center">
                     <i class="fas fa-box fa-2x text-primary me-3"></i>
@@ -74,7 +82,7 @@ include __DIR__ . '/../templates/header.php';
             </a>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
             <a href="<?= SITE_URL ?>/admin/orders.php" class="card border-0 shadow-sm rounded-4 p-4 text-decoration-none h-100">
                 <div class="d-flex align-items-center">
                     <i class="fas fa-list fa-2x text-success me-3"></i>
@@ -86,13 +94,37 @@ include __DIR__ . '/../templates/header.php';
             </a>
         </div>
         
-        <div class="col-md-4">
+        <div class="col-md-6 col-lg-3">
             <a href="<?= SITE_URL ?>/admin/categories.php" class="card border-0 shadow-sm rounded-4 p-4 text-decoration-none h-100">
                 <div class="d-flex align-items-center">
                     <i class="fas fa-tags fa-2x text-info me-3"></i>
                     <div>
                         <h5 class="fw-bold mb-1">Категории</h5>
                         <p class="text-muted mb-0 small">Управление категориями</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        
+        <!-- НОВОЕ: Отзывы -->
+        <div class="col-md-6 col-lg-3">
+            <a href="<?= SITE_URL ?>/admin/reviews.php" class="card border-0 shadow-sm rounded-4 p-4 text-decoration-none h-100 position-relative">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-star fa-2x text-warning me-3"></i>
+                    <div>
+                        <h5 class="fw-bold mb-1">
+                            Отзывы
+                            <?php if ($pendingReviews > 0): ?>
+                                <span class="badge bg-danger ms-1"><?= $pendingReviews ?></span>
+                            <?php endif; ?>
+                        </h5>
+                        <p class="text-muted mb-0 small">
+                            <?php if ($pendingReviews > 0): ?>
+                                Ожидают модерации
+                            <?php else: ?>
+                                Модерация отзывов
+                            <?php endif; ?>
+                        </p>
                     </div>
                 </div>
             </a>

@@ -57,6 +57,10 @@ $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $products = $stmt->fetchAll();
 
+// === РЕЙТИНГИ для всех товаров одним запросом ===
+$productIds = array_column($products, 'id');
+$ratings = getRatingsForProducts($productIds);
+
 include __DIR__ . '/templates/header.php';
 ?>
 
@@ -110,6 +114,9 @@ include __DIR__ . '/templates/header.php';
                 <?php else: ?>
                     <div class="row g-4">
                         <?php foreach ($products as $product): ?>
+                            <?php
+                            $productRating = $ratings[(int)$product['id']] ?? null;
+                            ?>
                             <div class="col-md-6 col-xl-4">
                                 <div class="product-card animate-fade-in">
                                     <a href="<?= SITE_URL ?>/product.php?id=<?= $product['id'] ?>">
@@ -122,6 +129,22 @@ include __DIR__ . '/templates/header.php';
                                                 <?= escape($product['name']) ?>
                                             </a>
                                         </h5>
+                                        
+                                        <!-- РЕЙТИНГ НА КАРТОЧКЕ -->
+                                        <div class="product-card-rating mb-2">
+                                            <?php if ($productRating !== null): ?>
+                                                <?= renderStars($productRating['average'], 'sm') ?>
+                                                <span class="ms-1 small text-muted">
+                                                    <?= number_format($productRating['average'], 1, '.', '') ?>
+                                                    (<?= $productRating['count'] ?>)
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="small text-muted">
+                                                    <i class="far fa-star me-1"></i>Нет отзывов
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                        
                                         <button class="btn add-to-cart-btn" 
                                                 data-product-id="<?= $product['id'] ?>"
                                                 data-product-name="<?= escape($product['name']) ?>">

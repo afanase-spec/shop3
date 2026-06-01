@@ -2024,3 +2024,187 @@ body.page-loading .product-card {
     --skeleton-base: #252837;
     --skeleton-highlight: #2d3142;
 }
+/* ============================================================
+   ОТЗЫВЫ И РЕЙТИНГИ (Stage 3)
+   ============================================================ */
+
+/* === ЗВЁЗДЫ ОТОБРАЖЕНИЯ === */
+.rating-stars {
+    display: inline-flex;
+    gap: 2px;
+    line-height: 1;
+}
+
+.rating-stars .star-filled {
+    color: #ffc107;
+}
+
+.rating-stars .star-empty {
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .rating-stars .star-empty {
+    color: #4a4a4a;
+}
+
+.rating-stars.stars-sm i {
+    font-size: 0.875rem;
+}
+
+.rating-stars.stars-md i {
+    font-size: 1.125rem;
+}
+
+.rating-stars.stars-lg i {
+    font-size: 1.75rem;
+}
+
+/* === СВОДКА РЕЙТИНГА НА СТРАНИЦЕ ТОВАРА === */
+.product-rating-summary {
+    font-size: 1rem;
+}
+
+.product-rating-summary a {
+    color: var(--bs-primary);
+}
+
+.rating-summary-card {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.05), rgba(255, 193, 7, 0.02));
+}
+
+[data-theme="dark"] .rating-summary-card {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.08), rgba(255, 193, 7, 0.03));
+}
+
+.rating-summary-card .display-3 {
+    color: var(--bs-warning);
+    line-height: 1;
+}
+
+/* === ФОРМА ОТПРАВКИ ОТЗЫВА === */
+.review-form-card {
+    position: sticky;
+    top: 20px;
+}
+
+/* === ВВОД ЗВЁЗД (интерактивный выбор) === */
+.rating-input {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    gap: 4px;
+}
+
+.rating-input input[type="radio"] {
+    display: none;
+}
+
+.rating-input-star {
+    cursor: pointer;
+    font-size: 2rem;
+    color: #d1d5db;
+    transition: color 0.15s ease, transform 0.15s ease;
+    margin: 0;
+    line-height: 1;
+}
+
+[data-theme="dark"] .rating-input-star {
+    color: #4a4a4a;
+}
+
+.rating-input-star:hover,
+.rating-input-star:hover ~ .rating-input-star,
+.rating-input input[type="radio"]:checked ~ .rating-input-star {
+    color: #ffc107;
+    transform: scale(1.1);
+}
+
+/* === КАРТОЧКА ОТЗЫВА (фронтенд) === */
+.review-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.review-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+.review-card .review-text {
+    color: var(--bs-body-color);
+    line-height: 1.6;
+}
+
+/* === РЕЙТИНГ НА КАРТОЧКЕ КАТАЛОГА === */
+.product-card-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 22px;
+    font-size: 0.875rem;
+}
+
+.product-card-rating .rating-stars i {
+    font-size: 0.8rem;
+}
+
+/* ============================================================
+   АДМИНКА — МОДЕРАЦИЯ ОТЗЫВОВ
+   ============================================================ */
+
+/* Табы фильтра */
+.review-filter-tabs .nav-link {
+    color: var(--bs-body-color);
+    border-radius: 12px;
+    padding: 8px 16px;
+    transition: all 0.15s ease;
+}
+
+.review-filter-tabs .nav-link:hover {
+    background: rgba(13, 110, 253, 0.08);
+}
+
+.review-filter-tabs .nav-link.active {
+    background: var(--bs-primary);
+    color: white;
+}
+
+[data-theme="dark"] .review-filter-tabs .nav-link {
+    color: var(--bs-body-color);
+}
+
+[data-theme="dark"] .review-filter-tabs .nav-link:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Карточка отзыва в админке — цветная полоска слева по статусу */
+.admin-review-card {
+    border-left: 4px solid transparent !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-review-card:hover {
+    transform: translateX(2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+.admin-review-card.status-pending {
+    border-left-color: #ffc107 !important;
+}
+
+.admin-review-card.status-approved {
+    border-left-color: #198754 !important;
+}
+
+.admin-review-card.status-hidden {
+    border-left-color: #6c757d !important;
+}
+
+/* Мобильная адаптация */
+@media (max-width: 768px) {
+    .admin-review-card .col-md-3:last-child {
+        margin-top: 12px;
+    }
+    
+    .rating-input-star {
+        font-size: 1.75rem;
+    }
+}
