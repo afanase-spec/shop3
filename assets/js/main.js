@@ -146,13 +146,10 @@ function removeFromCart(productId) {
 }
 
 /* ---------- ОБНОВИТЬ КОЛ-ВО (таблица корзины) ---------- */
-const _pendingCartUpdates = new Set(); // защита от двойных кликов
-
 const _pendingCartUpdates = new Set();
 
 function updateQuantity(productId, quantity) {
     if (quantity < 1) { removeFromCart(productId); return; }
-
     if (_pendingCartUpdates.has(productId)) return;
     _pendingCartUpdates.add(productId);
 
@@ -213,7 +210,7 @@ function updateQuantity(productId, quantity) {
                     flashUpdate(itemsCount);
                 }
 
-                // 6. Бейдж и плашка с суммой в навбаре
+                // 6. Бейдж в навбаре
                 updateCartBadge(data.cartCount, data.cartTotal);
             } else {
                 showNotification(data.message || 'Ошибка обновления', 'error');
@@ -225,14 +222,12 @@ function updateQuantity(productId, quantity) {
         })
         .finally(() => {
             _pendingCartUpdates.delete(productId);
+            // Все кнопки снова активны — никаких disabled
             if (row) {
                 const decreaseBtn = row.querySelector('.btn-qty-decrease');
                 const increaseBtn = row.querySelector('.btn-qty-increase');
+                if (decreaseBtn) decreaseBtn.disabled = false;
                 if (increaseBtn) increaseBtn.disabled = false;
-                if (decreaseBtn) {
-                    const currentQty = parseInt(document.getElementById(`qty-${productId}`)?.value || '1');
-                    decreaseBtn.disabled = (currentQty <= 1);
-                }
             }
         });
 }
@@ -334,11 +329,14 @@ function replaceButtonWithQuantityControl(productId, currentQty = 1) {
 }
 
 /* ---------- +/- НА КАРТОЧКАХ ТОВАРОВ ---------- */
+/* ---------- +/- НА КАРТОЧКАХ ТОВАРОВ ---------- */
 function updateProductQuantity(productId, delta) {
+    if (_pendingCartUpdates.has(productId)) return;
+
     const display = document.getElementById(`qty-display-${productId}`);
     if (!display) return;
 
-    let currentQty = parseInt(display.textContent) || 0;
+    let currentQty = parseInt(display.textContent) || 1;
     let newQty = currentQty + delta;
 
     if (newQty < 1) {
@@ -347,10 +345,31 @@ function updateProductQuantity(productId, delta) {
         return;
     }
 
+    _pendingCartUpdates.add(productId);
+
+    // Блокируем кнопки на время запроса
+    const controls = document.querySelectorAll(`.quantity-control-inline`);
+    let targetControl = null;
+    controls.forEach(c => {
+        const minus = c.querySelector('.btn-qty-minus');
+        if (minus && minus.getAttribute('onclick')?.includes(`${productId},`)) {
+            targetControl = c;
+        }
+    });
+    if (targetControl) {
+        targetControl.querySelectorAll('button').forEach(b => b.disabled = true);
+    }
+
+    // Оптимистично обновляем display
     display.textContent = newQty;
+    flashUpdate(display);
 
     const token = getCSRFToken();
-    if (!token) return;
+    if (!token) {
+        _pendingCartUpdates.delete(productId);
+        if (targetControl) targetControl.querySelectorAll('button').forEach(b => b.disabled = false);
+        return;
+    }
 
     const formData = new FormData();
     formData.append('product_id', productId);
@@ -362,10 +381,21 @@ function updateProductQuantity(productId, delta) {
         .then(data => {
             if (data.success) {
                 updateCartBadge(data.cartCount, data.cartTotal);
-                showNotification('Количество обновлено', 'success');
+            } else {
+                // Откат при ошибке
+                display.textContent = currentQty;
+                showNotification(data.message || 'Ошибка', 'error');
             }
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+            console.error(err);
+            display.textContent = currentQty;
+            showNotification('Произошла ошибка', 'error');
+        })
+        .finally(() => {
+            _pendingCartUpdates.delete(productId);
+            if (targetControl) targetControl.querySelectorAll('button').forEach(b => b.disabled = false);
+        });
 }
 
 /* ---------- ВОССТАНОВИТЬ КНОПКУ "В КОРЗИНУ" ---------- */

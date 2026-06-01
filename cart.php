@@ -48,7 +48,7 @@ include __DIR__ . '/templates/header.php';
                                     <td><?= formatPrice($item['price']) ?></td>
                                     <td>
                                         <div class="quantity-control">
-                                            <button type="button" class="btn-qty-decrease" <?= $item['quantity'] <= 1 ? 'disabled' : '' ?> onclick="updateQuantity(<?= $productId ?>, <?= $item['quantity'] - 1 ?>)">−</button>
+                                            <button type="button" class="btn-qty-decrease" onclick="updateQuantity(<?= $productId ?>, <?= $item['quantity'] - 1 ?>)">−</button>
                                             <input type="number" id="qty-<?= $productId ?>" value="<?= $item['quantity'] ?>" readonly>
                                             <button type="button" class="btn-qty-increase" onclick="updateQuantity(<?= $productId ?>, <?= $item['quantity'] + 1 ?>)">+</button>
                                         </div>
