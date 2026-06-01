@@ -84,7 +84,7 @@ $stmt->execute($bindParams);
 $reviews = $stmt->fetchAll();
 
 $pageTitle = 'Модерация отзывов - Админ';
-include __DIR__ . '/templates/admin_header.php';
+include __DIR__ . '/../templates/header.php';
 ?>
 
 <div class="container-fluid">
@@ -285,4 +285,4 @@ include __DIR__ . '/templates/admin_header.php';
     <?php endif; ?>
 </div>
 
-<?php include __DIR__ . '/templates/footer.php'; ?>
+<?php include __DIR__ . '/../templates/footer.php'; ?>
