@@ -28,28 +28,35 @@ function getCSRFToken() {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         const current = root.getAttribute('data-theme') || 'light';
         applyTheme(current === 'dark' ? 'light' : 'dark');
+        return false;
     }
 
     function init() {
-        applyTheme(root.getAttribute('data-theme') || localStorage.getItem('theme') || 'light');
+        const saved = localStorage.getItem('theme');
+        const current = saved || root.getAttribute('data-theme') || 'light';
+        applyTheme(current);
 
-        // Прямые обработчики на все возможные триггеры
-        const ids = ['themeToggle', 'themeToggleGuest'];
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('click', toggleTheme);
-            }
-        });
+        // Триггер в дропдауне (авторизованный пользователь)
+        const toggleItem = document.getElementById('themeToggle');
+        if (toggleItem) {
+            toggleItem.addEventListener('click', toggleTheme);
+        }
 
-        // КЛЮЧЕВОЙ ФИКС: input.theme-switch может перехватить клик сам — вешаем на него change
+        // Триггер в навбаре (гость)
+        const toggleGuest = document.getElementById('themeToggleGuest');
+        if (toggleGuest) {
+            toggleGuest.addEventListener('click', toggleTheme);
+        }
+
+        // Прямой клик по самому ползунку (input checkbox)
         document.querySelectorAll('.theme-switch').forEach(sw => {
+            sw.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                toggleTheme();
+            });
             sw.addEventListener('change', function(e) {
                 e.stopPropagation();
-                applyTheme(sw.checked ? 'dark' : 'light');
-            });
-            sw.addEventListener('click', function(e) {
-                e.stopPropagation(); // не даём Bootstrap закрыть dropdown
             });
         });
     }
@@ -61,6 +68,7 @@ function getCSRFToken() {
     }
 
     window.toggleTheme = toggleTheme;
+    window.applyTheme  = applyTheme;
 })();
 
 /* ---------- NAVBAR SCROLL EFFECT ---------- */
