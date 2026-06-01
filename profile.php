@@ -23,6 +23,14 @@ if (!$user) {
     redirect('/login.php');
 }
 
+// Если у юзера нет токена отписки — генерим (на случай если миграция не отработала)
+if (empty($user['unsubscribe_token'])) {
+    $token = bin2hex(random_bytes(32));
+    $stmt = $db->prepare("UPDATE users SET unsubscribe_token = ? WHERE id = ?");
+    $stmt->execute([$token, $userId]);
+    $user['unsubscribe_token'] = $token;
+}
+
 // Обработка обновления профиля
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     if (!isset($_POST['csrf_token']) || !validateCSRFToken($_POST['csrf_token'])) {
@@ -37,12 +45,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         } else {
             $stmt = $db->prepare("UPDATE users SET name = ?, phone = ?, address = ? WHERE id = ?");
             $stmt->execute([$name, $phone, $address, $userId]);
-            
-            // Обновляем сессию
             $_SESSION['user_name'] = $name;
-            
             $message = 'Профиль успешно обновлен';
+            
+            // Перечитываем юзера
+            $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch();
         }
+    }
+}
+
+// Обработка переключателя уведомлений
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_notifications'])) {
+    if (!isset($_POST['csrf_token']) || !validateCSRFToken($_POST['csrf_token'])) {
+        $error = 'Ошибка безопасности';
+    } else {
+        $enabled = isset($_POST['email_notifications']) ? 1 : 0;
+        $stmt = $db->prepare("UPDATE users SET email_notifications = ? WHERE id = ?");
+        $stmt->execute([$enabled, $userId]);
+        $user['email_notifications'] = $enabled;
+        $message = $enabled 
+            ? 'Email-уведомления включены' 
+            : 'Email-уведомления отключены';
     }
 }
 
@@ -62,23 +87,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         } elseif (strlen($newPassword) < 6) {
             $error = 'Пароль должен быть не менее 6 символов';
         } else {
-            // Проверяем текущий пароль
             if (!password_verify($currentPassword, $user['password_hash'])) {
                 $error = 'Неверный текущий пароль';
             } else {
                 $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
                 $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
                 $stmt->execute([$newHash, $userId]);
-                
                 $message = 'Пароль успешно изменен';
             }
         }
     }
 }
 
-// Получаем историю заказов пользователя
-$stmt = $db->prepare("SELECT * FROM orders WHERE customer_name = ? OR phone = ? ORDER BY created_at DESC LIMIT 10");
-$stmt->execute([$user['name'], $user['phone']]);
+// История заказов: предпочтительно по user_id, fallback на старые заказы по имени+телефону
+$stmt = $db->prepare("
+    SELECT * FROM orders 
+    WHERE user_id = ? OR (user_id IS NULL AND customer_name = ? AND phone = ?)
+    ORDER BY created_at DESC 
+    LIMIT 10
+");
+$stmt->execute([$userId, $user['name'], $user['phone']]);
 $orders = $stmt->fetchAll();
 
 // Подсчитываем общую потраченную сумму
@@ -160,6 +188,41 @@ include __DIR__ . '/templates/header.php';
                 </form>
             </div>
             
+            <!-- Email-уведомления -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+                <h3 class="fw-bold mb-4"><i class="fas fa-bell me-2 text-primary"></i>Email-уведомления</h3>
+                
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                    <input type="hidden" name="update_notifications" value="1">
+                    
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" 
+                               type="checkbox" 
+                               role="switch" 
+                               id="emailNotifSwitch" 
+                               name="email_notifications" 
+                               value="1"
+                               onchange="this.form.submit()"
+                               <?= intval($user['email_notifications']) === 1 ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-semibold ms-2" for="emailNotifSwitch">
+                            <?php if (intval($user['email_notifications']) === 1): ?>
+                                <i class="fas fa-check-circle text-success me-1"></i>
+                                Получать уведомления о заказах
+                            <?php else: ?>
+                                <i class="fas fa-times-circle text-muted me-1"></i>
+                                Уведомления отключены
+                            <?php endif; ?>
+                        </label>
+                    </div>
+                    
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Когда включено — вы получаете письма о статусе ваших заказов на <strong><?= escape($user['email']) ?></strong>
+                    </p>
+                </form>
+            </div>
+            
             <!-- Смена пароля -->
             <div class="card border-0 shadow-sm rounded-4 p-4">
                 <h3 class="fw-bold mb-4"><i class="fas fa-lock me-2 text-primary"></i>Смена пароля</h3>
@@ -201,7 +264,6 @@ include __DIR__ . '/templates/header.php';
         
         <!-- Боковая панель -->
         <div class="col-lg-4">
-            <!-- Статистика -->
             <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
                 <h4 class="fw-bold mb-3">Статистика</h4>
                 <div class="d-flex justify-content-between mb-2">

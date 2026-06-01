@@ -81,6 +81,28 @@ include __DIR__ . '/../templates/header.php';
                 </div>
             </a>
         </div>
+        <!-- Email-уведомления -->
+<div class="col-md-6 col-lg-4">
+    <a href="<?= SITE_URL ?>/admin/email_log.php" class="text-decoration-none">
+        <div class="card border-0 shadow-sm rounded-4 p-4 h-100 admin-card">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="admin-card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <i class="fas fa-envelope"></i>
+                </div>
+                <?php
+                // Бейдж количества ошибок отправки за последние 24 часа
+                $errStmt = $db->query("SELECT COUNT(*) FROM email_log WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+                $errCount = (int)$errStmt->fetchColumn();
+                if ($errCount > 0):
+                ?>
+                    <span class="badge bg-danger"><?= $errCount ?> ошибок</span>
+                <?php endif; ?>
+            </div>
+            <h5 class="fw-bold mb-2">Email-уведомления</h5>
+            <p class="text-muted small mb-0">История отправленных писем клиентам</p>
+        </div>
+    </a>
+</div>
         
         <div class="col-md-6 col-lg-3">
             <a href="<?= SITE_URL ?>/admin/orders.php" class="card border-0 shadow-sm rounded-4 p-4 text-decoration-none h-100">

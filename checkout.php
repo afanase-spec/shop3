@@ -1,11 +1,21 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/mailer.php';
 
 $pageTitle = 'Оформление заказа - ' . SITE_NAME;
 $cart = getCart();
 $error = '';
 $success = false;
 $orderNumber = 0;
+
+// Если юзер залогинен — подтянем его данные для автоподстановки
+$loggedUser = null;
+if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] && isset($_SESSION['user_id'])) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT id, email, name, phone, address FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $loggedUser = $stmt->fetch();
+}
 
 // Обработка POST запроса
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -17,13 +27,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Получаем данные формы
         $customerName = trim($_POST['customer_name'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
-        $address = trim($_POST['address'] ?? '');
-        $comment = trim($_POST['comment'] ?? '');
+        $email        = trim($_POST['email'] ?? '');
+        $phone        = trim($_POST['phone'] ?? '');
+        $address      = trim($_POST['address'] ?? '');
+        $comment      = trim($_POST['comment'] ?? '');
+        
+        // Если юзер залогинен — email берём из его аккаунта (нельзя подменить)
+        if ($loggedUser) {
+            $email = $loggedUser['email'];
+        }
         
         // Валидация
         if (empty($customerName) || mb_strlen($customerName) < 2) {
             $error = 'Введите корректное имя';
+        } elseif (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Введите корректный email';
         } elseif (empty($phone) || !preg_match('/^[\d\s\-\+\(\)]+$/', $phone)) {
             $error = 'Введите корректный телефон';
         } elseif (empty($address)) {
@@ -35,13 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $db = getDB();
                 $total = calculateCartTotal();
+                $userId = $loggedUser ? (int)$loggedUser['id'] : null;
                 
                 // Начинаем транзакцию
                 $db->beginTransaction();
                 
-                // Создаем заказ
-                $stmt = $db->prepare("INSERT INTO orders (customer_name, phone, address, comment, total) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$customerName, $phone, $address, $comment, $total]);
+                // Создаем заказ (с email и user_id)
+                $stmt = $db->prepare("
+                    INSERT INTO orders (customer_name, email, user_id, phone, address, comment, total) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$customerName, $email, $userId, $phone, $address, $comment, $total]);
                 $orderNumber = $db->lastInsertId();
                 
                 // Добавляем товары заказа
@@ -60,6 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Очищаем корзину
                 clearCart();
+                
+                // Отправляем email-уведомление о создании заказа
+                // Не блокируем выполнение если письмо не ушло — лог в email_log
+                try {
+                    sendOrderCreatedEmail((int)$orderNumber);
+                } catch (Exception $mailErr) {
+                    error_log("Ошибка отправки email о заказе #$orderNumber: " . $mailErr->getMessage());
+                }
                 
                 $success = true;
                 
@@ -87,7 +117,11 @@ include __DIR__ . '/templates/header.php';
             <h1 class="mt-4 mb-3">Спасибо за заказ!</h1>
             <p class="lead text-muted mb-2">Ваш заказ успешно оформлен</p>
             <p class="text-muted mb-4">Номер заказа: <strong>#<?= $orderNumber ?></strong></p>
-            <p class="text-muted mb-4">Мы свяжемся с вами в ближайшее время для подтверждения</p>
+            <p class="text-muted mb-2">Мы свяжемся с вами в ближайшее время для подтверждения</p>
+            <p class="text-muted mb-4">
+                <i class="fas fa-envelope me-1"></i>
+                Подтверждение отправлено на вашу почту
+            </p>
             <a href="<?= SITE_URL ?>/" class="btn btn-primary btn-lg">
                 <i class="fas fa-home me-2"></i>Вернуться на главную
             </a>
@@ -122,7 +156,24 @@ include __DIR__ . '/templates/header.php';
                                        required 
                                        minlength="2"
                                        placeholder="Иванов Иван Иванович"
-                                       value="<?= escape($_POST['customer_name'] ?? '') ?>">
+                                       value="<?= escape($_POST['customer_name'] ?? ($loggedUser['name'] ?? '')) ?>">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Email <span class="text-danger">*</span>
+                                    <?php if ($loggedUser): ?>
+                                        <small class="text-muted ms-1">(из вашего профиля)</small>
+                                    <?php endif; ?>
+                                </label>
+                                <input type="email" 
+                                       class="form-control" 
+                                       name="email" 
+                                       required
+                                       placeholder="your@email.com"
+                                       <?= $loggedUser ? 'readonly' : '' ?>
+                                       value="<?= escape($_POST['email'] ?? ($loggedUser['email'] ?? '')) ?>">
+                                <small class="text-muted">На этот адрес мы отправим подтверждение заказа</small>
                             </div>
                             
                             <div class="mb-3">
@@ -131,9 +182,8 @@ include __DIR__ . '/templates/header.php';
                                        class="form-control" 
                                        name="phone" 
                                        required
-                                       pattern="[\d\s\-\+\(\)]+$/"
                                        placeholder="+7 (999) 123-45-67"
-                                       value="<?= escape($_POST['phone'] ?? '') ?>">
+                                       value="<?= escape($_POST['phone'] ?? ($loggedUser['phone'] ?? '')) ?>">
                             </div>
                             
                             <div class="mb-3">
@@ -148,7 +198,7 @@ include __DIR__ . '/templates/header.php';
                                           name="address" 
                                           rows="3" 
                                           required
-                                          placeholder="Город, улица, дом, квартира"><?= escape($_POST['address'] ?? '') ?></textarea>
+                                          placeholder="Город, улица, дом, квартира"><?= escape($_POST['address'] ?? ($loggedUser['address'] ?? '')) ?></textarea>
                                 <small id="geo-status" class="form-text text-muted d-none"></small>
                             </div>
                             
@@ -204,7 +254,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const addressField = document.getElementById('address-field');
     const statusText = document.getElementById('geo-status');
     
-    // ВАШ КЛЮЧ HTTP ГЕОКОДЕРА
     const GEOCODER_API_KEY = '7f28dfaf-f690-4c44-b51f-cc2082634be0';
 
     if (!detectBtn) return;
@@ -214,38 +263,28 @@ document.addEventListener('DOMContentLoaded', function () {
         detectBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Определяем...';
         showStatus('Запрашиваем геоданные устройства...', 'text-muted');
 
-        // Шаг 1: Пробуем встроенную геолокацию HTML5 в браузере (Высокая точность GPS/Wi-Fi)
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 function (position) {
-                    // Успешно получили координаты устройства
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
-                    
                     showStatus('Координаты получены. Запрашиваем адрес у Яндекса...', 'text-muted');
-                    // Важно: Яндекс Геокодер принимает координаты в формате "долгота,широта"
                     getAddressFromGeocoder(`${lon},${lat}`);
                 },
                 function (error) {
-                    // Если браузер отказал или не смог найти GPS (например, на стационарном ПК по проводу)
                     console.warn("Браузерная геолокация недоступна, код ошибки: " + error.code);
                     showStatus('Точный GPS недоступен. Пробуем определить по IP-адресу...', 'text-warning');
-                    
-                    // Резервный вариант: Геокодирование на основе IP-адреса через сервис Яндекса
                     fetchAddressByIP();
                 },
                 { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
             );
         } else {
-            // Если браузер совсем древний и не поддерживает Geolocation
             fetchAddressByIP();
         }
     });
 
-    // Шаг 2: Функция отправки координат в HTTP Геокодер Яндекса
     function getAddressFromGeocoder(geocodeValue) {
         const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${GEOCODER_API_KEY}&geocode=${encodeURIComponent(geocodeValue)}&format=json&results=1`;
-
         fetch(url)
             .then(response => {
                 if (!response.ok) throw new Error('Ошибка сети при запросе к геокодеру');
@@ -253,10 +292,8 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(data => {
                 try {
-                    // Безопасно парсим сложную структуру JSON Яндекса
                     const geoObject = data.response.GeoObjectCollection.featureMember[0].GeoObject;
                     const addressLine = geoObject.metaDataProperty.GeocoderMetaData.Address.formatted;
-                    
                     if (addressLine) {
                         addressField.value = addressLine;
                         showStatus('Адрес успешно определен!', 'text-success');
@@ -276,17 +313,12 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // Шаг 3: Резервный метод определения положения по IP через API Яндекс.Карт (без координат устройства)
     function fetchAddressByIP() {
-        // Запрашиваем автоопределение региона у Яндекса
-        // Для этого делаем пустой запрос к Геокодеру, но Яндекс умеет подставлять город по IP заголовкам
-        // Альтернативный надежный трюк: запрашиваем координаты через облегченный JSONP/скрипт API Яндекса
         const script = document.createElement('script');
         script.src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU&onload=initIPDetection';
         document.head.appendChild(script);
     }
 
-    // Глобальная функция-колбэк, которая вызовется после загрузки легкого API карт для IP-геолокации
     window.initIPDetection = function() {
         if (typeof ymaps !== 'undefined' && ymaps.geolocation) {
             ymaps.geolocation.get({ provider: 'yandex', autoReverseGeocode: true })
