@@ -146,11 +146,26 @@ function removeFromCart(productId) {
 }
 
 /* ---------- ОБНОВИТЬ КОЛ-ВО (таблица корзины) ---------- */
+const _pendingCartUpdates = new Set(); // защита от двойных кликов
+
 function updateQuantity(productId, quantity) {
     if (quantity < 1) { removeFromCart(productId); return; }
 
+    // Защита от race condition при быстрых кликах
+    if (_pendingCartUpdates.has(productId)) return;
+    _pendingCartUpdates.add(productId);
+
     const token = getCSRFToken();
-    if (!token) { showNotification('Ошибка безопасности', 'error'); return; }
+    if (!token) {
+        _pendingCartUpdates.delete(productId);
+        showNotification('Ошибка безопасности', 'error');
+        return;
+    }
+
+    // Блокируем кнопки на время запроса
+    const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+    const buttons = row ? row.querySelectorAll('.quantity-control button') : [];
+    buttons.forEach(b => b.disabled = true);
 
     const formData = new FormData();
     formData.append('product_id', productId);
@@ -161,33 +176,75 @@ function updateQuantity(productId, quantity) {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
+                // 1. Обновляем input с количеством
                 const qtyInput = document.getElementById(`qty-${productId}`);
                 if (qtyInput) qtyInput.value = quantity;
 
-                const row = document.querySelector(`tr[data-product-id="${productId}"]`);
+                // 2. Перепривязываем onclick на кнопках +/-
                 if (row) {
-                    const buttons = row.querySelectorAll('.quantity-control button');
-                    if (buttons.length >= 2) {
-                        buttons[0].setAttribute('onclick', `updateQuantity(${productId}, ${Math.max(1, quantity - 1)})`);
-                        buttons[1].setAttribute('onclick', `updateQuantity(${productId}, ${quantity + 1})`);
+                    const decreaseBtn = row.querySelector('.btn-qty-decrease');
+                    const increaseBtn = row.querySelector('.btn-qty-increase');
+                    if (decreaseBtn) {
+                        decreaseBtn.setAttribute('onclick', `updateQuantity(${productId}, ${quantity - 1})`);
+                        decreaseBtn.disabled = (quantity <= 1);
+                    }
+                    if (increaseBtn) {
+                        increaseBtn.setAttribute('onclick', `updateQuantity(${productId}, ${quantity + 1})`);
                     }
                 }
 
+                // 3. Обновляем сумму по товару с подсветкой
                 const itemTotal = document.querySelector(`.item-total[data-product-id="${productId}"]`);
-                if (itemTotal) itemTotal.textContent = formatPrice(data.itemTotal);
+                if (itemTotal) {
+                    itemTotal.textContent = formatPrice(data.itemTotal);
+                    flashUpdate(itemTotal);
+                }
 
+                // 4. Обновляем общую сумму корзины с подсветкой
                 const cartTotalElement = document.getElementById('cartTotal');
-                if (cartTotalElement) cartTotalElement.textContent = formatPrice(data.cartTotal);
+                if (cartTotalElement) {
+                    cartTotalElement.textContent = formatPrice(data.cartTotal);
+                    flashUpdate(cartTotalElement);
+                }
 
+                // 5. Обновляем счётчик "Товары (N шт.)"
+                const itemsCount = document.getElementById('cartItemsCount');
+                if (itemsCount) {
+                    itemsCount.textContent = data.cartCount;
+                    flashUpdate(itemsCount);
+                }
+
+                // 6. Обновляем бейдж корзины в навбаре
                 updateCartBadge(data.cartCount, data.cartTotal);
             } else {
-                showNotification(data.message, 'error');
+                showNotification(data.message || 'Ошибка обновления', 'error');
             }
         })
         .catch(err => {
             console.error(err);
             showNotification('Произошла ошибка', 'error');
+        })
+        .finally(() => {
+            _pendingCartUpdates.delete(productId);
+            // Разблокируем кнопки (с учётом disabled у "−" при qty=1)
+            if (row) {
+                const decreaseBtn = row.querySelector('.btn-qty-decrease');
+                const increaseBtn = row.querySelector('.btn-qty-increase');
+                if (increaseBtn) increaseBtn.disabled = false;
+                if (decreaseBtn) {
+                    const currentQty = parseInt(document.getElementById(`qty-${productId}`)?.value || '1');
+                    decreaseBtn.disabled = (currentQty <= 1);
+                }
+            }
         });
+}
+
+/* ---------- ПОДСВЕТКА ОБНОВЛЁННОГО ЭЛЕМЕНТА ---------- */
+function flashUpdate(element) {
+    if (!element) return;
+    element.classList.remove('cart-flash');
+    void element.offsetWidth; // перезапуск анимации
+    element.classList.add('cart-flash');
 }
 
 /* ---------- BADGE КОРЗИНЫ ---------- */

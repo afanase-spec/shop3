@@ -48,9 +48,9 @@ include __DIR__ . '/templates/header.php';
                                     <td><?= formatPrice($item['price']) ?></td>
                                     <td>
                                         <div class="quantity-control">
-                                            <button type="button" onclick="updateQuantity(<?= $productId ?>, <?= max(1, $item['quantity'] - 1) ?>)">-</button>
+                                            <button type="button" class="btn-qty-decrease" <?= $item['quantity'] <= 1 ? 'disabled' : '' ?> onclick="updateQuantity(<?= $productId ?>, <?= $item['quantity'] - 1 ?>)">−</button>
                                             <input type="number" id="qty-<?= $productId ?>" value="<?= $item['quantity'] ?>" readonly>
-                                            <button type="button" onclick="updateQuantity(<?= $productId ?>, <?= $item['quantity'] + 1 ?>)">+</button>
+                                            <button type="button" class="btn-qty-increase" onclick="updateQuantity(<?= $productId ?>, <?= $item['quantity'] + 1 ?>)">+</button>
                                         </div>
                                     </td>
                                     <td class="fw-bold item-total" data-product-id="<?= $productId ?>">
@@ -74,7 +74,7 @@ include __DIR__ . '/templates/header.php';
                     <h4 class="fw-bold mb-4">Итого</h4>
                     
                     <div class="d-flex justify-content-between mb-3">
-                        <span class="text-muted">Товары (<?= getCartCount() ?> шт.):</span>
+                        <span class="text-muted">Товары (<span id="cartItemsCount"><?= getCartCount() ?></span> шт.):</span>
                         <span class="fw-bold" id="cartTotal"><?= formatPrice(calculateCartTotal()) ?></span>
                     </div>
                     
